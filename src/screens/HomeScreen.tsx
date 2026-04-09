@@ -11,7 +11,9 @@ import {
 import { useAppStore } from "../store/useAppStore";
 import { getWorkflows } from "../services/workflow.service";
 import { triggerWorkflow } from "../services/workflow.service";
+import { getExecutions } from "../services/execution.service";
 import { StatusBadge } from "../components/StatusBadge";
+import { AutomationCard } from "../components/AutomationCard";
 
 export const HomeScreen: React.FC = () => {
   const colorScheme = useColorScheme();
@@ -21,20 +23,30 @@ export const HomeScreen: React.FC = () => {
   const connection = useAppStore((s) => s.connection);
   const automations = useAppStore((s) => s.automations);
   const isLoading = useAppStore((s) => s.isLoadingAutomations);
+  const isLoadingExecutions = useAppStore((s) => s.isLoadingExecutions);
   const setAutomations = useAppStore((s) => s.setAutomations);
   const setLoading = useAppStore((s) => s.setLoadingAutomations);
+  const executions = useAppStore((s) => s.executions);
+  const setExecutions = useAppStore((s) => s.setExecutions);
+  const setLoadingExecutions = useAppStore((s) => s.setLoadingExecutions);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadingExecutions(true);
     try {
-      const data = await getWorkflows();
-      setAutomations(data);
+      const [workflows, execs] = await Promise.all([
+        getWorkflows(),
+        getExecutions(),
+      ]);
+      setAutomations(workflows);
+      setExecutions(execs);
     } catch {
       // silently ignore — show stale data
     } finally {
       setLoading(false);
+      setLoadingExecutions(false);
     }
-  }, [setAutomations, setLoading]);
+  }, [setAutomations, setLoading, setExecutions, setLoadingExecutions]);
 
   useEffect(() => {
     loadData();
@@ -51,9 +63,9 @@ export const HomeScreen: React.FC = () => {
   };
 
   const total = automations.length;
-  const success = automations.filter((w) => w.lastRunStatus === "SUCCEEDED").length;
-  const failed = automations.filter((w) => w.lastRunStatus === "FAILED").length;
-  const running = automations.filter((w) => w.lastRunStatus === "RUNNING").length;
+  const success = automations.filter((w) => w.status === "ENABLED").length;
+  const failed = automations.filter((w) => w.status === "DISABLED").length;
+  const running = new Set(executions.filter((e) => e.status === "RUNNING").map((e) => e.flowId)).size;
 
   const bg = isDark ? "bg-slate-900" : "bg-slate-50";
   const cardBg = isDark ? "bg-slate-800" : "bg-white";
@@ -62,7 +74,7 @@ export const HomeScreen: React.FC = () => {
     <ScrollView
       className={`flex-1 ${bg}`}
       refreshControl={
-        <RefreshControl refreshing={isLoading} onRefresh={loadData} />
+        <RefreshControl refreshing={isLoading || isLoadingExecutions} onRefresh={loadData} />
       }
     >
       {/* Header greeting */}
@@ -144,6 +156,48 @@ export const HomeScreen: React.FC = () => {
             onPress={loadData}
           />
         </View>
+
+        {/* Recent workflows */}
+        <Text
+          className={`text-sm font-semibold uppercase tracking-wider mt-6 mb-3 ${
+            isDark ? "text-slate-400" : "text-slate-500"
+          }`}
+        >
+          Workflows
+        </Text>
+        {automations.length === 0 ? (
+          <View className="items-center py-8">
+            <Text className="text-3xl mb-2">⚙️</Text>
+            <Text
+              className={`text-base font-medium ${
+                isDark ? "text-slate-300" : "text-slate-600"
+              }`}
+            >
+              No workflows yet
+            </Text>
+            <Text className={`text-sm mt-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+              Create a workflow in n8n to see it here
+            </Text>
+          </View>
+        ) : (
+          <View>
+            {automations.slice(0, 5).map((workflow) => (
+              <AutomationCard
+                key={workflow.id}
+                workflow={workflow}
+                onPress={() => {}}
+                onRun={async () => {
+                  try {
+                    await triggerWorkflow(workflow.id);
+                    Alert.alert("Triggered", `"${workflow.name}" has been triggered`);
+                  } catch {
+                    Alert.alert("Error", "Could not trigger workflow");
+                  }
+                }}
+              />
+            ))}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -209,3 +263,6 @@ const QuickActionCard: React.FC<{
     <Text className="text-blue-200 text-xs mt-0.5">{subtitle}</Text>
   </TouchableOpacity>
 );
+
+
+

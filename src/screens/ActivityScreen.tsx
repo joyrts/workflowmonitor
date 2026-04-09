@@ -10,13 +10,14 @@ import { useAppStore } from "../store/useAppStore";
 import { getExecutions } from "../services/execution.service";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatRelativeTime, formatDuration } from "../utils/helpers";
-import { Execution } from "../types";
+import { Execution, Workflow } from "../types";
 
 export const ActivityScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
   const executions = useAppStore((s) => s.executions);
+  const automations = useAppStore((s) => s.automations);
   const isLoading = useAppStore((s) => s.isLoadingExecutions);
   const setExecutions = useAppStore((s) => s.setExecutions);
   const setLoading = useAppStore((s) => s.setLoadingExecutions);
@@ -37,50 +38,88 @@ export const ActivityScreen: React.FC = () => {
     loadActivity();
   }, [loadActivity]);
 
-  const subtext = isDark ? "text-slate-400" : "text-slate-500";
+  // Group executions by workflow
+  const groupedData = automations.map((workflow) => {
+    const workflowExecutions = executions
+      .filter((e) => e.flowId === workflow.id)
+      .slice(0, 3); // Show last 3 runs per workflow
+    return { workflow, executions: workflowExecutions };
+  });
 
-  const renderItem = ({ item }: { item: Execution }) => (
+  const subtext = isDark ? "text-slate-400" : "text-slate-500";
+  const cardBg = isDark ? "bg-slate-800" : "bg-white";
+
+  const renderExecutionItem = (execution: Execution) => (
     <View
-      className={`mx-4 mb-3 rounded-2xl px-4 py-3.5 ${
-        isDark ? "bg-slate-800" : "bg-white"
+      className={`ml-4 mr-4 mb-2 rounded-xl px-3 py-2.5 ${
+        isDark ? "bg-slate-700" : "bg-slate-100"
       }`}
-      style={{
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: isDark ? 0 : 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-      }}
     >
-      {/* Top row */}
-      <View className="flex-row items-center justify-between mb-2">
-        <Text
-          className={`font-semibold text-sm flex-1 mr-3 ${
-            isDark ? "text-slate-100" : "text-slate-900"
-          }`}
-          numberOfLines={1}
-        >
-          {item.flowName ?? item.flowId}
+      <View className="flex-row items-center justify-between mb-1.5">
+        <Text className={`text-xs font-medium flex-1 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+          Run
         </Text>
-        <StatusBadge status={item.status} />
+        <StatusBadge status={execution.status} />
       </View>
 
-      {/* Message */}
-      {item.message && (
-        <Text className={`text-xs mb-2 ${subtext}`} numberOfLines={2}>
-          {item.message}
+      {execution.message && (
+        <Text className={`text-xs mb-1.5 ${subtext}`} numberOfLines={1}>
+          {execution.message}
         </Text>
       )}
 
-      {/* Meta */}
       <View className="flex-row items-center justify-between">
         <Text className={`text-xs ${subtext}`}>
-          {formatRelativeTime(item.startTime)}
+          {formatRelativeTime(execution.startTime)}
         </Text>
         <Text className={`text-xs ${subtext}`}>
-          {formatDuration(item.durationMs)}
+          {formatDuration(execution.durationMs)}
         </Text>
       </View>
+    </View>
+  );
+
+  const renderWorkflowGroup = ({ item }: { item: { workflow: Workflow; executions: Execution[] } }) => (
+    <View className="mb-4">
+      {/* Workflow header */}
+      <View
+        className={`mx-4 mb-2.5 rounded-2xl px-4 py-3 ${cardBg}`}
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDark ? 0 : 0.05,
+          shadowRadius: 4,
+          elevation: 2,
+        }}
+      >
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1 mr-3">
+            <Text
+              className={`font-semibold text-sm ${
+                isDark ? "text-slate-100" : "text-slate-900"
+              }`}
+              numberOfLines={1}
+            >
+              {item.workflow.name}
+            </Text>
+            <Text className={`text-xs mt-1 ${subtext}`}>
+              {item.executions.length === 0 ? "No runs yet" : `${item.executions.length} recent run${item.executions.length !== 1 ? "s" : ""}`}
+            </Text>
+          </View>
+          <StatusBadge status={item.workflow.status} />
+        </View>
+      </View>
+
+      {/* Executions for this workflow */}
+      {item.executions.length > 0 ? (
+        item.executions.map((execution) => (
+          <View key={execution.id}>{renderExecutionItem(execution)}</View>
+        ))
+      ) : (
+        <View className={`mx-4 mb-3 rounded-xl px-3 py-2.5 ${isDark ? "bg-slate-700" : "bg-slate-100"}`}>
+          <Text className={`text-xs ${subtext}`}>No execution history</Text>
+        </View>
+      )}
     </View>
   );
 
@@ -97,19 +136,17 @@ export const ActivityScreen: React.FC = () => {
         >
           Activity
         </Text>
-        <Text className={`text-sm mt-0.5 ${subtext}`}>
-          {executions.length} execution{executions.length !== 1 ? "s" : ""}
-        </Text>
+        <Text className={`text-sm mt-0.5 ${subtext}`}>Recent execution runs</Text>
       </View>
 
       <FlatList
-        data={executions}
-        keyExtractor={(item) => item.id}
+        data={groupedData}
+        keyExtractor={(item) => item.workflow.id}
         contentContainerStyle={{ paddingTop: 16, paddingBottom: 40 }}
         refreshControl={
           <RefreshControl refreshing={isLoading} onRefresh={loadActivity} />
         }
-        renderItem={renderItem}
+        renderItem={renderWorkflowGroup}
         ListEmptyComponent={
           <View className="items-center py-16">
             <Text className="text-4xl mb-3">📋</Text>
@@ -118,10 +155,10 @@ export const ActivityScreen: React.FC = () => {
                 isDark ? "text-slate-300" : "text-slate-600"
               }`}
             >
-              No activity yet
+              No workflows yet
             </Text>
             <Text className={`text-sm mt-1 ${subtext}`}>
-              Run a workflow to see logs here
+              Create workflows in the Flows tab to see activity here
             </Text>
           </View>
         }

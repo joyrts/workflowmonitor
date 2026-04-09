@@ -2,7 +2,7 @@ import { getApiInstance } from "./api";
 import { MOCK_AI_RESPONSE } from "../utils/mockData";
 import { sleep } from "../utils/helpers";
 
-const USE_MOCK = true;
+const USE_MOCK = true; // n8n doesn't expose these AI endpoints
 
 export interface AIResponse {
   message: string;
@@ -15,7 +15,7 @@ export const sendChatMessage = async (prompt: string): Promise<AIResponse> => {
     return { message: MOCK_AI_RESPONSE(prompt) };
   }
   const api = getApiInstance();
-  const response = await api.post("/api/v1/ai/chat", { message: prompt });
+  const response = await api.post("/ai/chat", { message: prompt });
   return response.data;
 };
 
@@ -25,6 +25,6 @@ export const createWorkflowWithAI = async (prompt: string): Promise<object> => {
     return { name: "AI Generated Workflow", description: prompt };
   }
   const api = getApiInstance();
-  const response = await api.post("/api/v1/ai/create-workflow", { prompt });
+  const response = await api.post("/ai/create-workflow", { prompt });
   return response.data;
 };

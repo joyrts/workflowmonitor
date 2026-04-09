@@ -34,8 +34,8 @@ export const ConnectServerScreen: React.FC<Props> = ({ navigation }) => {
   const [testError, setTestError] = useState("");
 
   const handleTestConnection = async () => {
-    if (!serverUrl.trim() || !apiKey.trim()) {
-      Alert.alert("Missing Info", "Please enter both Server URL and API Key");
+    if (!serverUrl.trim()) {
+      Alert.alert("Missing Info", "Please enter the Server URL");
       return;
     }
     setTesting(true);
@@ -53,15 +53,18 @@ export const ConnectServerScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleSave = async () => {
-    if (!serverUrl.trim() || !apiKey.trim()) {
-      Alert.alert("Missing Info", "Please enter both Server URL and API Key");
+    if (!serverUrl.trim()) {
+      Alert.alert("Missing Info", "Please enter the Server URL");
       return;
     }
+    console.log(`Save & Connect: serverUrl="${serverUrl.trim()}", apiKey="${apiKey?.trim() ? apiKey.trim().substring(0, 10) + '...' : 'EMPTY'}"`);
     setSaving(true);
     try {
       await connectServer(serverUrl.trim(), apiKey.trim());
+      console.log("connectServer succeeded - should navigate now");
       // navigation is handled by RootNavigator watching connection.status
     } catch (err: any) {
+      console.log("connectServer failed:", err.message);
       Alert.alert("Connection Error", err.message ?? "Could not connect to server");
     } finally {
       setSaving(false);
@@ -71,7 +74,7 @@ export const ConnectServerScreen: React.FC<Props> = ({ navigation }) => {
   const handleSkip = () => {
     // Allow skipping for demo — use mock data
     useAppStore.getState().setConnection({
-      serverUrl: "http://demo.activepieces.local",
+      serverUrl: "http://demo.n8n.local",
       apiKey: "demo-key-mock",
       status: "connected",
     });
@@ -91,7 +94,7 @@ export const ConnectServerScreen: React.FC<Props> = ({ navigation }) => {
           {/* Icon & Title */}
           <View className="items-center mb-8">
             <View className="w-14 h-14 bg-blue-600 rounded-xl items-center justify-center mb-3">
-              <Text className="text-white text-xl font-bold">AP</Text>
+              <Text className="text-white text-xl font-bold">n8n</Text>
             </View>
             <Text
               className={`text-2xl font-bold mb-1 ${
@@ -105,7 +108,7 @@ export const ConnectServerScreen: React.FC<Props> = ({ navigation }) => {
                 isDark ? "text-slate-400" : "text-slate-500"
               }`}
             >
-              Enter your Activepieces server details
+              Enter your n8n server details
             </Text>
           </View>
 
@@ -122,7 +125,7 @@ export const ConnectServerScreen: React.FC<Props> = ({ navigation }) => {
           >
             <InputField
               label="Server URL"
-              placeholder="https://your-server.com"
+              placeholder="localhost:5678 or http://192.168.1.1:5678"
               value={serverUrl}
               onChangeText={(v) => {
                 setServerUrl(v);
@@ -130,15 +133,23 @@ export const ConnectServerScreen: React.FC<Props> = ({ navigation }) => {
               }}
               keyboardType="url"
             />
+            {Platform.OS === "android" && (
+              <Text
+                className={`text-xs mt-2 ${isDark ? "text-slate-400" : "text-slate-500"}`}
+              >
+                Android emulator: use 10.0.2.2:5678 when connecting to localhost
+              </Text>
+            )}
             <InputField
-              label="API Key"
-              placeholder="ap_xxxxxxxxxxxxxxxx"
+              label="API Key (optional)"
+              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
               value={apiKey}
               onChangeText={(v) => {
                 setApiKey(v);
                 setTestResult(null);
               }}
               secureTextEntry
+              showPasteButton
             />
 
             {/* Test result feedback */}
